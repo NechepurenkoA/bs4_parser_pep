@@ -2,22 +2,27 @@ import logging
 import re
 from urllib.parse import urljoin
 
+from requests import Session
 import requests_cache
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from constants import (BASE_DIR, MAIN_DOC_URL, PEP_URL, EXPECTED_STATUS)
+from constants import (
+    BASE_DIR,
+    MAIN_DOC_URL,
+    PEP_URL,
+    EXPECTED_STATUS,
+    DOWNLOADS_POSTFIX,
+    PATTERN
+)
 from configs import configure_argument_parser, configure_logging
+from exceptions import ParserFindTagException
 from outputs import control_output
-from utils import get_response, find_tag
+from utils import find_tag, get_soup
 
 
-def whats_new(session):
+def whats_new(session: Session) -> list[tuple[str, str, str]]:
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
-    response = get_response(session, whats_new_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = get_soup(session, whats_new_url)
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
     div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
     sections_by_python = div_with_ul.find_all(
@@ -28,10 +33,7 @@ def whats_new(session):
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
-        response = get_response(session, version_link)
-        if response is None:
-            continue
-        soup = BeautifulSoup(response.text, 'lxml')
+        soup = get_soup(session, version_link)
         h1 = find_tag(soup, 'h1')
         dl = find_tag(soup, 'dl')
         dl_text = dl.text.replace('\n', ' ')
@@ -41,11 +43,8 @@ def whats_new(session):
     return results
 
 
-def latest_versions(session):
-    response = get_response(session, MAIN_DOC_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, 'lxml')
+def latest_versions(session: Session) -> list[tuple[str, str, str]]:
+    soup = get_soup(session, MAIN_DOC_URL)
     sidebar = find_tag(soup, 'div', {'class': 'sphinxsidebarwrapper'})
     ul_tags = sidebar.find_all('ul')
     for ul in ul_tags:
@@ -53,17 +52,15 @@ def latest_versions(session):
             a_tags = ul.find_all('a')
             break
     else:
-        raise Exception('Ничего не нашлось')
-
+        raise ParserFindTagException('Ничего не нашлось')
     results = [('Ссылка на статью', 'Заголовок', 'Редактор, автор')]
-    pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
     for a_tag in a_tags:
         link = a_tag['href']
-        if not re.search(pattern, a_tag.text):
+        if not re.search(PATTERN, a_tag.text):
             version = a_tag.text
             status = ''
         else:
-            text_match = re.search(pattern, a_tag.text)
+            text_match = re.search(PATTERN, a_tag.text)
             version = text_match.group('version')
             status = text_match.group('status')
         results.append((link, version, status))
@@ -71,12 +68,9 @@ def latest_versions(session):
     return results
 
 
-def download(session):
+def download(session: Session) -> None:
     downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
-    response = get_response(session, downloads_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = get_soup(session, downloads_url)
     table_tag = find_tag(soup, 'table', {'class': 'docutils'})
     pdf_a4_tag = find_tag(
         table_tag,
@@ -86,8 +80,12 @@ def download(session):
     pdf_a4_link = pdf_a4_tag['href']
     archive_url = urljoin(downloads_url, pdf_a4_link)
     filename = archive_url.split('/')[-1]
-    downloads_dir = BASE_DIR / 'downloads'
-    downloads_dir.mkdir(exist_ok=True)
+    downloads_dir = BASE_DIR / DOWNLOADS_POSTFIX
+    try:
+        downloads_dir.mkdir(exist_ok=True)
+    except Exception as ex:
+        logging.critical(ex)
+        return
     archive_path = downloads_dir / filename
     response = session.get(archive_url)
 
@@ -96,12 +94,8 @@ def download(session):
     logging.info(f'Архив был загружен и сохранён: {archive_path}')
 
 
-def pep(session):
-    response = get_response(session, PEP_URL)
-    if not response:
-        return
-
-    soup = BeautifulSoup(response.text, 'lxml')
+def pep(session: Session) -> list[tuple[str, str]]:
+    soup = get_soup(session, PEP_URL)
     section_tag = find_tag(soup, 'section', {'id': 'numerical-index'})
     tbody_tag = find_tag(section_tag, 'tbody')
     tr_tags = tbody_tag.find_all('tr')
@@ -112,10 +106,7 @@ def pep(session):
         preview_st = find_tag(tr, 'td').text[1:]
         a_href = find_tag(tr, 'a')['href']
         link = urljoin(PEP_URL, a_href)
-        response = get_response(session, link)
-        if not response:
-            return
-        pep_soup = BeautifulSoup(response.text, 'lxml')
+        pep_soup = get_soup(session, link)
         dt_tags = pep_soup.find_all('dt')
         for dt in dt_tags:
             if dt.text == 'Status:':
@@ -148,7 +139,7 @@ MODE_TO_FUNCTION = {
 }
 
 
-def main():
+def main() -> None:
     configure_logging()
     logging.info('Парсер запущен!')
     arg_parser = configure_argument_parser(MODE_TO_FUNCTION.keys())
