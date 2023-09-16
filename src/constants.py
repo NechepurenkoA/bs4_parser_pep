@@ -7,7 +7,7 @@ LOG_FILE_POSTFIX = 'parser.log'
 RESULTS_DIR_POSTFIX = 'results'
 DOWNLOADS_POSTFIX = 'downloads'
 # Регулярка, чтобы достать только версию Питона и её статус из левого меню.
-PATTERN = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
+REGULAR_FOR_PYTHON = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
 LXML = 'lxml'
 DATETIME_FORMAT = '%Y-%m-%d_%H-%M-%S'
 PEP_URL = 'https://peps.python.org/'

@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class Func(Enum):
+class OutputVariant(Enum):
     pretty = 'pretty'
     file = 'file'
 
@@ -11,6 +11,6 @@ class Func(Enum):
     @staticmethod
     def from_string(s):
         try:
-            return Func[s]
+            return OutputVariant[s]
         except KeyError:
             raise ValueError()

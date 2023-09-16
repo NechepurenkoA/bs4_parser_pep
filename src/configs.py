@@ -3,7 +3,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from constants import BASE_DIR, LOG_DIR_POSTFIX, LOG_FILE_POSTFIX
-from enums import Func
+from enums import OutputVariant
 
 LOG_FORMAT = '"%(asctime)s - [%(levelname)s] - %(message)s"'
 DT_FORMAT = '%d.%m.%Y %H:%M:%S'
@@ -27,7 +27,7 @@ def configure_argument_parser(
     parser.add_argument(
         '-o',
         '--output',
-        choices=tuple(e.value for e in Func),
+        choices=tuple(e.value for e in OutputVariant),
         help='Дополнительные способы вывода данных'
     )
     return parser
@@ -37,8 +37,8 @@ def configure_logging() -> None:
     log_dir = BASE_DIR / LOG_DIR_POSTFIX
     try:
         log_dir.mkdir(exist_ok=True)
-    except Exception as exc:
-        logging.critical(exc)
+    except (FileNotFoundError, OSError) as exc:
+        logging.critical(f'Произошла ошибка при создании папки: {exc}')
         return
     log_file = BASE_DIR / LOG_FILE_POSTFIX
     rotating_handler = RotatingFileHandler(

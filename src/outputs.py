@@ -5,14 +5,14 @@ import logging
 from prettytable import PrettyTable
 
 from constants import DATETIME_FORMAT, RESULTS_DIR_POSTFIX, BASE_DIR
-from enums import Func
+from enums import OutputVariant
 
 
 def control_output(results: list[tuple[str]], cli_args: list[str]) -> None:
     output = cli_args.output
     output_vars = {
-        Func.pretty.value: [pretty_output, results],
-        Func.file.value: [file_output, results, cli_args],
+        OutputVariant.pretty.value: [pretty_output, results],
+        OutputVariant.file.value: [file_output, results, cli_args],
         None: [default_output, results]
     }
     func = output_vars[output][0]
@@ -36,8 +36,8 @@ def file_output(results: list[tuple[str]], cli_args: list[str]):
     results_dir = BASE_DIR / RESULTS_DIR_POSTFIX
     try:
         results_dir.mkdir(exist_ok=True)
-    except Exception as exc:
-        logging.critical(exc)
+    except (FileNotFoundError, OSError) as exc:
+        logging.critical(f'Произошла ошибка при создании папки: {exc}')
         return
     parser_mode = cli_args.mode
     now = dt.datetime.now()

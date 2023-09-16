@@ -12,7 +12,7 @@ from constants import (
     PEP_URL,
     EXPECTED_STATUS,
     DOWNLOADS_POSTFIX,
-    PATTERN
+    REGULAR_FOR_PYTHON
 )
 from configs import configure_argument_parser, configure_logging
 from exceptions import ParserFindTagException
@@ -56,11 +56,11 @@ def latest_versions(session: Session) -> list[tuple[str, str, str]]:
     results = [('Ссылка на статью', 'Заголовок', 'Редактор, автор')]
     for a_tag in a_tags:
         link = a_tag['href']
-        if not re.search(PATTERN, a_tag.text):
+        if not re.search(REGULAR_FOR_PYTHON, a_tag.text):
             version = a_tag.text
             status = ''
         else:
-            text_match = re.search(PATTERN, a_tag.text)
+            text_match = re.search(REGULAR_FOR_PYTHON, a_tag.text)
             version = text_match.group('version')
             status = text_match.group('status')
         results.append((link, version, status))
@@ -83,8 +83,8 @@ def download(session: Session) -> None:
     downloads_dir = BASE_DIR / DOWNLOADS_POSTFIX
     try:
         downloads_dir.mkdir(exist_ok=True)
-    except Exception as ex:
-        logging.critical(ex)
+    except (FileNotFoundError, OSError) as exc:
+        logging.critical(f'Произошла ошибка при создании папки: {exc}')
         return
     archive_path = downloads_dir / filename
     response = session.get(archive_url)
